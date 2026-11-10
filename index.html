@@ -31,6 +31,8 @@
   --bg:#12171b; --surface:#1b2228; --fg:#e7edf1; --muted:#9aa7b1; --line:#34404a;
   --accent:#5bb8ea; --accent-fg:#06202e; --ok:#55d17c; --bad:#ff7b6e; --bench:#232c33; --chip:#27313a; color-scheme:dark }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
+.live{fill:none;stroke:#12d957;stroke-width:4.5}
 body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:15px;line-height:1.45;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
 .wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
@@ -230,7 +232,7 @@ sticker(225,246,['1 Pulsador Verde','2 Luz Pulsador']);sticker(350,258,['3 Pulsa
   const g=el('g',{class:'part',tabindex:0,role:'button','aria-label':'Seta de emergencia'});
   parts.seta=el('circle',{cx,cy,r:50,fill:'#d6281f',stroke:'#8f1712','stroke-width':2},g);
   el('path',{d:`M${cx-20} ${cy-14}a25 25 0 1 1 0 28`,fill:'none',stroke:'#f2726b','stroke-width':3,'stroke-linecap':'round'},g);
-  parts.setaT=el('text',{x:cx,y:cy+74,'text-anchor':'middle','font-size':10,'font-family':'Arial',fill:'#5a4700','font-weight':700},svg,'');
+  parts.setaT=el('text',{x:cx,y:cy+64,'text-anchor':'middle','font-size':9.5,'font-family':'Arial',fill:'#5a4700','font-weight':700},svg,'');
   const tg=()=>{sim.seta=!sim.seta;update()};g.addEventListener('click',tg);g.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();tg()}});})();
 
 // bornes de la botonera
@@ -252,6 +254,8 @@ el('rect',{class:'stk',x:545,y:298,width:215,height:18});
 el('rect',{x:8,y:408,width:984,height:386,rx:8,fill:'#4a4f54',stroke:'#2e3236','stroke-width':2});
 el('rect',{x:26,y:424,width:948,height:356,rx:3,fill:'#f7f7f5',stroke:'#c4c4c0'});
 el('text',{x:40,y:770,'font-size':11,'font-family':'Arial',fill:'#777'},svg,'Caja de control UR3 · bornero de E/S');
+el('circle',{cx:488,cy:766,r:7,fill:'none',stroke:'#12d957','stroke-width':3.5});
+el('text',{x:502,y:770,'font-size':12,'font-family':'Arial',fill:'#333'},svg,'Aro verde = hay 24 V en ese borne. Toca un borne DO o CO para activar esa salida.');
 const CT={}, byLabel={};
 const ctG=el('g',{});
 const typeOf=l=>/^(DI|CI)\d/.test(l)?'in':/^(DO|CO)\d/.test(l)?'out':/^AI/.test(l)?'ain':/^AO/.test(l)?'aout':l==='AG'?'ag':l==='24V'?'24V':l==='0V'?'0V':'other';
@@ -291,7 +295,10 @@ function say(t,c){const s=$('status');s.textContent=t;s.className=c||''}
 function pickBT(id){if(mine){say(SOLMSG);return}hl=null;sel=sel===id?null:id;
   if(sel)say(`Borne ${id} (${btById[id].name}) elegido. Ahora toca el borne del robot donde va.`);else say('Toca un borne de la botonera y después el borne del robot.');
   draw()}
-function pickCT(cid){const t=CT[cid];if(mine){say(SOLMSG);return}
+function pickCT(cid){const t=CT[cid];
+  if(!sel&&t.type==='out'){const on=sim.out[t.label]=!sim.out[t.label];const lamp=Object.keys(S.wires).find(k=>S.wires[k]===cid);
+    say(`Salida ${t.label} ${on?'activada':'desactivada'}.`+(on?(lamp?` Tiene conectado el borne ${lamp} (${btById[lamp].name}).`:' No tiene ningún cable conectado.'):''));update();return}
+  if(mine){say(SOLMSG);return}
   if(!sel){say('Primero toca un borne de la botonera (1 a 12, +24 o M).');return}
   if(t.busy){say(`El borne ${t.label} lleva un puente de fábrica. No se toca.`,'bad');return}
   const other=Object.keys(S.wires).find(k=>S.wires[k]===cid&&k!==sel);
@@ -301,7 +308,7 @@ function pickCT(cid){const t=CT[cid];if(mine){say(SOLMSG);return}
 function isOk(id){const c=S.wires[id];if(!c)return false;const t=CT[c],b=btById[id];
   return b.kind==='p24'?t.type==='24V':b.kind==='m'?t.type==='0V':t.type===({in:'in',out:'out',ana:'ain'})[b.kind]}
 $('bCheck').onclick=()=>{checked={};let n=0;BT.forEach(b=>{checked[b.id]=isOk(b.id);if(checked[b.id])n++});
-  if(n===BT.length)say('Cableado correcto: 14 de 14. Apunta en qué entrada o salida has puesto cada cable (columna Resultado): al programar el robot hay que usar esas mismas. Ahora pruébalo con los pulsadores y el panel E/S.','ok');
+  if(n===BT.length)say('Cableado correcto: 14 de 14. Apunta en qué entrada o salida has puesto cada cable (columna Resultado): al programar el robot hay que usar esas mismas. Ahora pruébalo: mantén pulsado un botón de la botonera y mira el aro verde en su entrada; toca un borne DO para encender su luz.','ok');
   else say(`${n} de 14 conexiones correctas. Mira la guía: los fallos están marcados y explicados.`,'bad');update()};
 const solWires=()=>{const w={};BT.forEach(b=>{w[b.id]=b.kind==='p24'?'DIa-0':b.kind==='m'?'DOa-0':byLabel[S.map[b.id]][0]});return w};
 const SOLMSG='Estás viendo la solución. Pulsa "Volver a mis cables" para seguir cableando.';
@@ -347,6 +354,7 @@ function draw(){
 }
 function update(){$('bUndo').disabled=!undo.length;
   ['bCheck','bClear','bUndo'].forEach(k=>$(k).hidden=!!mine);$('bSol').textContent=mine?'Volver a mis cables':'Ver solución';$('bSol').classList.toggle('primary',!!mine);draw();const r=compute();
+  for(const k in CT){const t=CT[k];if((t.type==='out'&&sim.out[t.label])||(t.type==='in'&&r.ins[t.label]))el('circle',{class:'live',cx:t.x,cy:t.y,r:11},ringG)}
   // lámparas
   const set=(id,c,on)=>{parts[id].setAttribute('fill',c[on?1:0]);parts[id].style.filter=on?`drop-shadow(0 0 9px ${c[1]})`:''};
   set('2',COL.g,r.lit['2']);set('4',COL.y,r.lit['4']);set('6',COL.r,r.lit['6']);set('7',COL.g,r.lit['7']);set('8',COL.a,r.lit['8']);set('9',COL.r,r.lit['9']);
