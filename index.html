@@ -86,6 +86,11 @@ details summary{cursor:pointer;font-family:var(--font-head);font-size:17px;font-
 .wire-g.ok .wire-halo{stroke:#3fd16c;stroke-opacity:.95}
 .wire-g.bad .wire-halo{stroke:#ff3b30;stroke-opacity:.95;stroke-dasharray:9 7}
 .noclick .wire-g{pointer-events:none;opacity:.22}
+.wire-g.hl .wire-halo{stroke:#00a2ff;stroke-opacity:1;stroke-width:12;stroke-dasharray:none}
+.wire-g.hl .wire{stroke-width:5}
+.dim .wire-g:not(.hl){opacity:.16}
+.hl-ring{fill:none;stroke:#00a2ff;stroke-width:3.5}
+.btn:disabled{opacity:.45;cursor:default}
 .targetable .ct-term:hover .hole{stroke:#00a2ff;stroke-width:3}
 .stk{fill:#ffffff;stroke:#c9c9c9;stroke-width:.6}
 .stt{font-family:Arial,Helvetica,sans-serif;fill:#111111}
@@ -104,6 +109,7 @@ details summary{cursor:pointer;font-family:var(--font-head);font-size:17px;font-
     <button class="btn primary" id="bCheck">Comprobar cableado</button>
     <button class="btn" id="bSol">Ver solución</button>
     <button class="btn" id="bClear">Quitar todos los cables</button>
+    <button class="btn" id="bUndo">Deshacer</button>
     <label class="switch"><input type="checkbox" id="guide"> Mostrar destinos en la guía</label>
   </div>
 
@@ -174,7 +180,8 @@ let S={wires:Object.assign({},PRE),map:{},guide:true};
 BT.forEach(b=>{if(b.def)S.map[b.id]=b.def});
 try{const j=JSON.parse(localStorage.getItem('ur3sim')||'null');if(j&&j.wires&&j.map){S.wires=j.wires;Object.assign(S.map,j.map);S.guide=!!j.guide}}catch(e){}
 const save=()=>{try{localStorage.setItem('ur3sim',JSON.stringify(S))}catch(e){}};
-let sel=null, checked=null, solShown=false;
+let sel=null, checked=null, solShown=false, hl=null;
+const undo=[];const snap=()=>{undo.push(JSON.stringify(S.wires));if(undo.length>60)undo.shift()};
 const sim={pressed:{},selector:false,seta:false,pot:5,out:{}};
 
 /* ---------- dibujo de la botonera ---------- */
@@ -280,7 +287,7 @@ const wireG=el('g',{}), ringG=el('g',{'pointer-events':'none'});
 
 /* ---------- interacción ---------- */
 function say(t,c){const s=$('status');s.textContent=t;s.className=c||''}
-function pickBT(id){sel=sel===id?null:id;
+function pickBT(id){hl=null;sel=sel===id?null:id;
   if(sel)say(`Borne ${id} (${btById[id].name}) elegido. Ahora toca el borne del robot donde va.`);else say('Toca un borne de la botonera y después el borne del robot.');
   draw()}
 function pickCT(cid){const t=CT[cid];
@@ -288,16 +295,18 @@ function pickCT(cid){const t=CT[cid];
   if(t.busy){say(`El borne ${t.label} lleva un puente de fábrica. No se toca.`,'bad');return}
   const other=Object.keys(S.wires).find(k=>S.wires[k]===cid&&k!==sel);
   if(other){say(`El borne ${t.label} ya tiene el cable del ${other}. Quita ese cable antes.`,'bad');return}
-  S.wires[sel]=cid;say(`Cable del ${sel} conectado a ${t.label}. Sigue con otro borne o pulsa Comprobar.`);
+  snap();S.wires[sel]=cid;say(`Cable del ${sel} conectado a ${t.label}. Sigue con otro borne o pulsa Comprobar.`);
   sel=null;checked=null;save();update()}
 function isOk(id){const c=S.wires[id];if(!c)return false;const t=CT[c],b=btById[id];
   return b.kind==='p24'?t.type==='24V':b.kind==='m'?t.type==='0V':t.label===S.map[id]}
 $('bCheck').onclick=()=>{checked={};let n=0;BT.forEach(b=>{checked[b.id]=isOk(b.id);if(checked[b.id])n++});
   if(n===BT.length)say('Cableado correcto: 14 de 14. Pruébalo: pulsa los botones de la botonera y activa salidas en el panel E/S.','ok');
   else say(`${n} de 14 conexiones correctas. Mira la guía: los fallos están marcados y explicados.`,'bad');update()};
-$('bSol').onclick=()=>{S.wires={};BT.forEach(b=>{S.wires[b.id]=b.kind==='p24'?'DIa-0':b.kind==='m'?'DOa-0':byLabel[S.map[b.id]][0]});
+$('bSol').onclick=()=>{snap();hl=null;S.wires={};BT.forEach(b=>{S.wires[b.id]=b.kind==='p24'?'DIa-0':b.kind==='m'?'DOa-0':byLabel[S.map[b.id]][0]});
   sel=null;checked=null;solShown=true;save();say('Esta es la solución. Fíjate en el recorrido de cada cable, quita todos y repítelo sin mirar.');update()};
-$('bClear').onclick=()=>{S.wires={};sel=null;checked=null;solShown=false;save();say('Sin cables. Empieza por el +24 y la M: sin ellos no funciona nada.');update()};
+$('bClear').onclick=()=>{snap();hl=null;S.wires={};sel=null;checked=null;solShown=false;save();say('Sin cables. Empieza por el +24 y la M: sin ellos no funciona nada.');update()};
+$('bUndo').onclick=()=>{if(!undo.length)return;S.wires=JSON.parse(undo.pop());sel=null;hl=null;checked=null;save();say('Último cambio deshecho.');update()};
+svg.addEventListener('click',e=>{if(hl&&!e.target.closest('.wire-g')){hl=null;draw()}});
 $('guide').checked=S.guide;$('guide').onchange=e=>{S.guide=e.target.checked;save();update()};
 $('pot').oninput=e=>{sim.pot=+e.target.value;update()};
 
@@ -315,17 +324,22 @@ function compute(){const w=S.wires,tOf=id=>w[id]?CT[w[id]]:null;
 const WC=id=>id==='+24'?'#d6281f':id==='M'?'#1f5fd0':id==='12'?'#222222':'#8b4a2b';
 function draw(){
   wireG.textContent='';ringG.textContent='';
+  if(hl&&!S.wires[hl])hl=null;svg.classList.toggle('dim',!!hl);
   svg.classList.toggle('noclick',!!sel);svg.classList.toggle('targetable',!!sel);
   for(const id in S.wires){const a=btPos[id],b=CT[S.wires[id]];if(!b)continue;
     const d=`M${a.x} ${a.y}C${a.x} ${a.y+70},${b.x+60} ${b.y-40},${b.x} ${b.y}`;
-    const g=el('g',{class:'wire-g'+(checked?(checked[id]?' ok':' bad'):'')},wireG);
+    const g=el('g',{class:'wire-g'+(checked?(checked[id]?' ok':' bad'):'')+(hl===id?' hl':'')},wireG);
     el('path',{class:'wire-halo',d},g);const p=el('path',{class:'wire',d,stroke:WC(id)},g);
     el('circle',{cx:b.x,cy:b.y,r:5,fill:WC(id)},g);el('circle',{cx:a.x,cy:a.y-4,r:5,fill:WC(id)},g);
-    el('title',{},p,`Cable ${id} → ${b.label}. Toca para quitarlo.`);
-    g.addEventListener('click',()=>{delete S.wires[id];checked=null;save();say(`Cable del ${id} quitado.`);update()});}
+    el('title',{},p,`Cable ${id} → ${b.label}. Toca para ver por dónde va.`);
+    g.addEventListener('click',()=>{
+      if(hl===id){snap();delete S.wires[id];hl=null;checked=null;save();say(`Cable del ${id} quitado. Con Deshacer vuelve a su sitio.`);update()}
+      else{hl=id;say(`Cable del ${id} (${btById[id].name}): va al borne ${b.label} del robot. Tócalo otra vez para quitarlo, o toca fuera para dejarlo.`);draw()}});}
+  if(hl){const hg=wireG.querySelector('.hl');hg&&wireG.appendChild(hg);const a=btPos[hl],b=CT[S.wires[hl]];
+    el('rect',{class:'hl-ring',x:a.x-16,y:323,width:32,height:48,rx:4},ringG);el('circle',{class:'hl-ring',cx:b.x,cy:b.y,r:15},ringG)}
   if(sel){const a=btPos[sel];el('rect',{class:'sel-ring',x:a.x-16,y:323,width:32,height:48,rx:4},ringG)}
 }
-function update(){draw();const r=compute();
+function update(){$('bUndo').disabled=!undo.length;draw();const r=compute();
   // lámparas
   const set=(id,c,on)=>{parts[id].setAttribute('fill',c[on?1:0]);parts[id].style.filter=on?`drop-shadow(0 0 9px ${c[1]})`:''};
   set('2',COL.g,r.lit['2']);set('4',COL.y,r.lit['4']);set('6',COL.r,r.lit['6']);set('7',COL.g,r.lit['7']);set('8',COL.a,r.lit['8']);set('9',COL.r,r.lit['9']);
@@ -362,7 +376,7 @@ function buildMap(){const m=$('map');m.textContent='';
 $('bReset').onclick=()=>{BT.forEach(b=>{if(b.def)S.map[b.id]=b.def});checked=null;save();buildMap();update()};
 
 buildMap();
-say(Object.keys(S.wires).length===2&&S.wires['+24']==='DIa-0'?'Ejemplo hecho: el +24 y la M ya están cableados. Toca un borne de la botonera y después el borne del robot.':'Toca un borne de la botonera y después el borne del robot. Toca un cable para quitarlo.');
+say(Object.keys(S.wires).length===2&&S.wires['+24']==='DIa-0'?'Ejemplo hecho: el +24 y la M ya están cableados. Toca un borne de la botonera y después el borne del robot.':'Toca un borne de la botonera y después el borne del robot. Toca un cable para ver por dónde va.');
 update();
 })();
 </script>
