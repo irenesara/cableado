@@ -121,6 +121,7 @@ details summary{cursor:pointer;font-family:var(--font-head);font-size:17px;font-
     <section class="card">
       <h2>Guía de cableado</h2>
       <table><thead><tr><th>Borne</th><th>Elemento</th><th>Va a</th><th>Resultado</th></tr></thead><tbody id="tb"></tbody></table>
+      <p class="note"><strong>Ojo al programar:</strong> cada contacto puede ir a cualquier entrada libre y cada luz a cualquier salida libre. Lo que importa es que el programa del robot use las mismas que has cableado. Si la seta está en DI5, el programa tiene que leer DI5; si la luz verde está en DO3, tiene que activar DO3.</p>
       <p class="note">N.C = contacto normalmente cerrado: deja pasar los 24 V en reposo y los corta al pulsar. Por eso el pulsador rojo y la seta se ven encendidos en el robot cuando nadie los toca.</p>
     </section>
 
@@ -134,7 +135,7 @@ details summary{cursor:pointer;font-family:var(--font-head);font-size:17px;font-
     </section>
   </div>
 
-  <section class="card">
+  <section class="card" hidden>
     <details id="mapd">
       <summary>Ajustar al cableado de tu aula</summary>
       <p class="note" style="margin-top:8px">Elige a qué borne del robot va cada cable en vuestro montaje. El simulador corrige con esta tabla y la recuerda en este navegador. El +24 vale en cualquier borne 24V y la M en cualquier borne 0V.</p>
@@ -178,7 +179,7 @@ const OPTS={in:seq('DI',0,7).concat(seq('CI',0,7)),out:seq('DO',0,7).concat(seq(
 const PRE={'+24':'DIa-0','M':'DOa-0'};
 let S={wires:Object.assign({},PRE),map:{},guide:true};
 BT.forEach(b=>{if(b.def)S.map[b.id]=b.def});
-try{const j=JSON.parse(localStorage.getItem('ur3sim')||'null');if(j&&j.wires&&j.map){S.wires=j.wires;Object.assign(S.map,j.map);S.guide=!!j.guide}}catch(e){}
+try{const j=JSON.parse(localStorage.getItem('ur3sim')||'null');if(j&&j.wires&&j.map){S.wires=j.wires;S.guide=!!j.guide}}catch(e){}
 const save=()=>{try{localStorage.setItem('ur3sim',JSON.stringify(Object.assign({},S,{wires:mine||S.wires})))}catch(e){}};
 let sel=null, checked=null, solShown=false, hl=null, mine=null;
 const undo=[];const snap=()=>{undo.push(JSON.stringify(S.wires));if(undo.length>60)undo.shift()};
@@ -298,15 +299,15 @@ function pickCT(cid){const t=CT[cid];if(mine){say(SOLMSG);return}
   snap();S.wires[sel]=cid;say(`Cable del ${sel} conectado a ${t.label}. Sigue con otro borne o pulsa Comprobar.`);
   sel=null;checked=null;save();update()}
 function isOk(id){const c=S.wires[id];if(!c)return false;const t=CT[c],b=btById[id];
-  return b.kind==='p24'?t.type==='24V':b.kind==='m'?t.type==='0V':t.label===S.map[id]}
+  return b.kind==='p24'?t.type==='24V':b.kind==='m'?t.type==='0V':t.type===({in:'in',out:'out',ana:'ain'})[b.kind]}
 $('bCheck').onclick=()=>{checked={};let n=0;BT.forEach(b=>{checked[b.id]=isOk(b.id);if(checked[b.id])n++});
-  if(n===BT.length)say('Cableado correcto: 14 de 14. Pruébalo: pulsa los botones de la botonera y activa salidas en el panel E/S.','ok');
+  if(n===BT.length)say('Cableado correcto: 14 de 14. Apunta en qué entrada o salida has puesto cada cable (columna Resultado): al programar el robot hay que usar esas mismas. Ahora pruébalo con los pulsadores y el panel E/S.','ok');
   else say(`${n} de 14 conexiones correctas. Mira la guía: los fallos están marcados y explicados.`,'bad');update()};
 const solWires=()=>{const w={};BT.forEach(b=>{w[b.id]=b.kind==='p24'?'DIa-0':b.kind==='m'?'DOa-0':byLabel[S.map[b.id]][0]});return w};
 const SOLMSG='Estás viendo la solución. Pulsa "Volver a mis cables" para seguir cableando.';
 $('bSol').onclick=()=>{hl=null;sel=null;checked=null;
   if(mine){S.wires=mine;mine=null;say('Has vuelto a tus cables, tal como los dejaste. Sigue cableando.')}
-  else{mine=S.wires;S.wires=solWires();say('Esta es la solución. Toca un cable para ver por dónde va. Cuando termines, pulsa "Volver a mis cables".')}
+  else{mine=S.wires;S.wires=solWires();say('Esta es una solución posible: vale cualquier entrada libre para los contactos y cualquier salida libre para las luces. Toca un cable para ver por dónde va. Cuando termines, pulsa "Volver a mis cables".')}
   update()};
 $('bClear').onclick=()=>{snap();hl=null;S.wires={};sel=null;checked=null;solShown=false;save();say('Sin cables. Empieza por el +24 y la M: sin ellos no funciona nada.');update()};
 $('bUndo').onclick=()=>{if(!undo.length)return;S.wires=JSON.parse(undo.pop());sel=null;hl=null;checked=null;save();say('Último cambio deshecho.');update()};
@@ -367,10 +368,10 @@ function update(){$('bUndo').disabled=!undo.length;
   // guía
   const tb=$('tb');tb.textContent='';
   BT.forEach(b=>{const tr=document.createElement('tr');const cur=S.wires[b.id]?CT[S.wires[b.id]].label:null;
-    const dest=b.kind==='p24'?'un borne 24V':b.kind==='m'?'un borne 0V':S.map[b.id];
+    const dest=b.kind==='p24'?'un borne 24V':b.kind==='m'?'un borne 0V':({in:'una entrada (DI o CI)',out:'una salida (DO o CO)',ana:'AI0 o AI1'})[b.kind];
     const show=S.guide||mine||(checked&&checked[b.id]);
     let res=cur?`<span class="hid">en ${cur}</span>`:'<span class="hid">sin cable</span>';
-    if(checked)res=checked[b.id]?`<span class="res-ok">✓ Bien, en ${cur}</span>`:`<span class="res-bad">✗ ${cur?'No va en '+cur:'Falta el cable'}</span><span class="why">${WHY[b.kind]}</span>`;
+    if(checked)res=checked[b.id]?`<span class="res-ok">✓ Bien, en ${cur}</span>`:`<span class="res-bad">✗ ${cur?'No va en '+cur:'Falta el cable'}</span><span class="why">${cur&&({in:'in',out:'out',ana:'ain'})[b.kind]===CT[S.wires[b.id]].type?`El tipo de borne es correcto y eléctricamente funciona, pero en la tabla este cable va en ${dest}. Si en tu aula va en ${cur}, cámbialo abajo, en «Ajustar al cableado de tu aula».`:WHY[b.kind]}</span>`;
     tr.innerHTML=`<td><span class="num">${b.id}</span></td><td>${b.name}</td><td class="dest">${show?dest:'<span class="hid">oculto</span>'}</td><td>${res}</td>`;tb.appendChild(tr)});
 }
 
