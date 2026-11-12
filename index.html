@@ -38,6 +38,7 @@
 .rot button{flex:none;border:0;background:none;color:inherit;font-size:22px;line-height:1;width:40px;height:40px;border-radius:8px;cursor:pointer}
 @media (orientation:portrait) and (max-width:700px){.rot{display:flex}}
 .live{fill:none;stroke:#12d957;stroke-width:4.5}
+.wire-g.on .wire-halo{stroke:#12d957;stroke-opacity:1;stroke-width:10;stroke-dasharray:none}
 body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:15px;line-height:1.45;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
 .wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
@@ -213,7 +214,7 @@ function pilot(id,cx,cy,off){const g=el('g',{});el('circle',{cx,cy,r:29,fill:'#2
 function push(id,lampId,cx,cy,off){const g=el('g',{class:'part',tabindex:0,role:'button','aria-label':btById[id].name});
   el('circle',{cx,cy,r:33,fill:'#3b3f42'},g);el('circle',{cx,cy,r:31,fill:'#c9cdd0',stroke:'#8e9498','stroke-width':1.5},g);
   parts[lampId]=el('circle',{cx,cy,r:23,fill:off,stroke:'#00000040','stroke-width':1.5},g);
-  const dn=e=>{e.preventDefault();sim.pressed[id]=true;g.setAttribute('transform',`translate(0 2)`);update()};
+  const dn=e=>{e.preventDefault();sim.pressed[id]=true;g.setAttribute('transform',`translate(0 2)`);update();tell(id)};
   g.addEventListener('pointerdown',dn);g.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter')dn(e)});
   g.addEventListener('keyup',up);parts['g'+id]=g;}
 function up(){let ch=false;for(const k in sim.pressed)if(sim.pressed[k]){sim.pressed[k]=false;ch=true;parts['g'+k].removeAttribute('transform')}if(ch)update()}
@@ -228,7 +229,7 @@ sticker(225,246,['1 Pulsador Verde','2 Luz Pulsador']);sticker(350,258,['3 Pulsa
 (function(){const cx=650,cy=72,g=el('g',{class:'part',tabindex:0,role:'button','aria-label':'Selector'});
   el('circle',{cx,cy,r:27,fill:'#d9dcde',stroke:'#8e9498','stroke-width':2},g);
   parts.sel=el('rect',{x:cx-9,y:cy-30,width:18,height:52,rx:4,fill:'#151515'},g);
-  const tg=()=>{sim.selector=!sim.selector;update()};g.addEventListener('click',tg);g.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();tg()}});
+  const tg=()=>{sim.selector=!sim.selector;update();tell('10')};g.addEventListener('click',tg);g.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();tg()}});
   sticker(cx,106,['10 Selector']);})();
 // potenciómetro
 (function(){const cx=775,cy=72;el('circle',{cx,cy,r:15,fill:'#9ea3a6',stroke:'#6d7275','stroke-width':2});
@@ -243,7 +244,7 @@ sticker(225,246,['1 Pulsador Verde','2 Luz Pulsador']);sticker(350,258,['3 Pulsa
   parts.seta=el('circle',{cx,cy,r:50,fill:'#d6281f',stroke:'#8f1712','stroke-width':2},g);
   el('path',{d:`M${cx-20} ${cy-14}a25 25 0 1 1 0 28`,fill:'none',stroke:'#f2726b','stroke-width':3,'stroke-linecap':'round'},g);
   parts.setaT=el('text',{x:cx,y:cy+64,'text-anchor':'middle','font-size':9.5,'font-family':'Arial',fill:'#5a4700','font-weight':700},svg,'');
-  const tg=()=>{sim.seta=!sim.seta;update()};g.addEventListener('click',tg);g.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();tg()}});})();
+  const tg=()=>{sim.seta=!sim.seta;update();tell('12')};g.addEventListener('click',tg);g.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();tg()}});})();
 
 // bornes de la botonera
 const btPos={};
@@ -265,7 +266,7 @@ el('rect',{x:8,y:408,width:984,height:386,rx:8,fill:'#4a4f54',stroke:'#2e3236','
 el('rect',{x:26,y:424,width:948,height:356,rx:3,fill:'#f7f7f5',stroke:'#c4c4c0'});
 el('text',{x:40,y:770,'font-size':11,'font-family':'Arial',fill:'#777'},svg,'Caja de control UR3 · bornero de E/S');
 el('circle',{cx:488,cy:766,r:7,fill:'none',stroke:'#12d957','stroke-width':3.5});
-el('text',{x:502,y:770,'font-size':12,'font-family':'Arial',fill:'#333'},svg,'Aro verde = hay 24 V en ese borne. Toca un borne DO o CO para activar esa salida.');
+el('text',{x:502,y:770,'font-size':12,'font-family':'Arial',fill:'#333'},svg,'Verde = hay 24 V (borne, cable y etiqueta). Toca un borne DO o CO para activar esa salida.');
 const CT={}, byLabel={};
 const ctG=el('g',{});
 const typeOf=l=>/^(DI|CI)\d/.test(l)?'in':/^(DO|CO)\d/.test(l)?'out':/^AI/.test(l)?'ain':/^AO/.test(l)?'aout':l==='AG'?'ag':l==='24V'?'24V':l==='0V'?'0V':'other';
@@ -298,7 +299,13 @@ el('text',{x:205,y:606,'text-anchor':'middle','font-size':10,'font-family':'Aria
 function jumper(a,b,col){const A=CT[a],B=CT[b];el('path',{d:`M${A.x} ${A.y}C${A.x+22} ${A.y},${B.x+22} ${B.y},${B.x} ${B.y}`,fill:'none',stroke:col,'stroke-width':4,'stroke-linecap':'round','pointer-events':'none'})}
 [0,2,4,6].forEach(i=>jumper('SF-'+i,'SF-'+(i+1),'#d9dcdf'));jumper('PW-0','PW-2','#d6281f');jumper('PW-1','PW-3','#222');
 
-const wireG=el('g',{}), ringG=el('g',{'pointer-events':'none'});
+const wireG=el('g',{}), ringG=el('g',{'pointer-events':'none'}), badgeG=el('g',{'pointer-events':'none'});
+const BP={'1':[262,176],'2':[262,196],'3':[387,188],'4':[387,208],'5':[512,176],'6':[512,196],'7':[303,64],'8':[423,64],'9':[543,64],'10':[683,64],'11':[746,30],'12':[772,220]};
+function tell(id){const b=btById[id],t=S.wires[id]&&CT[S.wires[id]],r=compute();
+  if(!t)say(`${b.name}: no tiene cable, el robot no se entera.`,'bad');
+  else if(t.type!=='in')say(`${b.name}: está en ${t.label}, que no es una entrada. El robot no lo lee.`,'bad');
+  else if(!r.powered)say(`${b.name}: falta el común +24, no llega señal a ${t.label}.`,'bad');
+  else say(r.closed[id]?`${b.name}: llegan 24 V a ${t.label}. Entrada ENCENDIDA.`:`${b.name}: se cortan los 24 V en ${t.label}. Entrada APAGADA.`,r.closed[id]?'ok':'')}
 
 /* ---------- interacción ---------- */
 function say(t,c){const s=$('status');s.textContent=t;s.className=c||''}
@@ -336,11 +343,11 @@ $('pot').oninput=e=>{sim.pot=+e.target.value;update()};
 function compute(){const w=S.wires,tOf=id=>w[id]?CT[w[id]]:null;
   const powered=!!(tOf('+24')&&tOf('+24').type==='24V'), grounded=!!(tOf('M')&&tOf('M').type==='0V');
   const closed={'1':!!sim.pressed['1'],'3':!!sim.pressed['3'],'5':!sim.pressed['5'],'10':sim.selector,'12':!sim.seta};
-  const ins={},lit={};let ai={};
-  for(const id in closed){const t=tOf(id);if(t&&t.type==='in'&&powered&&closed[id])ins[t.label]=true}
+  const ins={},lit={},liveIn={};let ai={};
+  for(const id in closed){const t=tOf(id);if(t&&t.type==='in'&&powered&&closed[id]){ins[t.label]=true;liveIn[id]=true}}
   ['2','4','6','7','8','9'].forEach(id=>{const t=tOf(id);lit[id]=!!(t&&grounded&&((t.type==='out'&&sim.out[t.label])||t.type==='24V'))});
   const tp=tOf('11');if(tp&&tp.type==='ain'&&powered&&grounded)ai[tp.label]=sim.pot;
-  return{ins,lit,ai,powered,grounded}}
+  return{ins,lit,ai,powered,grounded,liveIn,closed}}
 
 /* ---------- pintado ---------- */
 const WC=id=>id==='+24'?'#d6281f':id==='M'?'#1f5fd0':id==='12'?'#222222':'#8b4a2b';
@@ -351,7 +358,7 @@ function draw(){
   for(const id in S.wires){const a=btPos[id],b=CT[S.wires[id]];if(!b)continue;
     const d=`M${a.x} ${a.y}C${a.x} ${a.y+70},${b.x+60} ${b.y-40},${b.x} ${b.y}`;
     const g=el('g',{class:'wire-g'+(checked?(checked[id]?' ok':' bad'):'')+(hl===id?' hl':'')},wireG);
-    el('path',{class:'wire-halo',d},g);const p=el('path',{class:'wire',d,stroke:WC(id)},g);
+    g.dataset.id=id;el('path',{class:'wire-halo',d},g);const p=el('path',{class:'wire',d,stroke:WC(id)},g);
     el('circle',{cx:b.x,cy:b.y,r:5,fill:WC(id)},g);el('circle',{cx:a.x,cy:a.y-4,r:5,fill:WC(id)},g);
     el('title',{},p,`Cable ${id} → ${b.label}. Toca para ver por dónde va.`);
     g.addEventListener('click',()=>{
@@ -365,6 +372,12 @@ function draw(){
 function update(){$('bUndo').disabled=!undo.length;
   ['bCheck','bClear','bUndo'].forEach(k=>$(k).hidden=!!mine);$('bSol').textContent=mine?'Volver a mis cables':'Ver solución';$('bSol').classList.toggle('primary',!!mine);draw();const r=compute();
   for(const k in CT){const t=CT[k];if((t.type==='out'&&sim.out[t.label])||(t.type==='in'&&r.ins[t.label]))el('circle',{class:'live',cx:t.x,cy:t.y,r:11},ringG)}
+  badgeG.textContent='';
+  for(const id in BP){const t=S.wires[id]&&CT[S.wires[id]];if(!t)continue;const k=btById[id].kind,on=k==='in'?r.liveIn[id]:k==='out'?r.lit[id]:r.ai[t.label]!=null;
+    const p=BP[id],txt=k==='ana'?(on?`${t.label} ${sim.pot.toFixed(1)}V`:`→ ${t.label}`):(k==='out'?'← ':'→ ')+t.label;
+    el('rect',{x:p[0],y:p[1],width:56,height:17,rx:8.5,fill:on?'#0fae45':'#1d2b35','fill-opacity':on?1:.5},badgeG);
+    el('text',{x:p[0]+28,y:p[1]+12.5,'text-anchor':'middle','font-size':10.5,'font-family':'Arial','font-weight':700,fill:'#fff'},badgeG,txt);
+    const wg=wireG.querySelector(`[data-id="${id}"]`);if(wg&&on)wg.classList.add('on')}
   // lámparas
   const set=(id,c,on)=>{parts[id].setAttribute('fill',c[on?1:0]);parts[id].style.filter=on?`drop-shadow(0 0 9px ${c[1]})`:''};
   set('2',COL.g,r.lit['2']);set('4',COL.y,r.lit['4']);set('6',COL.r,r.lit['6']);set('7',COL.g,r.lit['7']);set('8',COL.a,r.lit['8']);set('9',COL.r,r.lit['9']);
